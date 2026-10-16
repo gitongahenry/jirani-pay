@@ -27,6 +27,7 @@ const T = {
     tabs: { shop: 'Nunua', orders: 'Oda zangu', impact: 'Athari', admin: 'Msimamizi' },
     ask: 'Unahitaji nini?', askHint: 'Mfano: mbegu za mahindi, bajeti ya elfu tatu', budget: 'Bajeti (KSh)', go: 'Tafuta', mic: 'Sema', listening: 'Nasikiliza…',
     noMic: 'Kipaza sauti hakipatikani kwenye kifaa hiki. Andika badala yake.',
+    micBlocked: 'Ruhusu kipaza sauti kwa tovuti hii: gusa alama ya kufuli juu ya ukurasa, kisha uwashe Microphone.',
     recommended: 'Inapendekezwa', select: 'Chagua', speak: 'Soma kwa sauti', qty: 'Idadi', deliv: 'Siku za uwasilishaji (makadirio)',
     within: 'Ndani ya bajeti', over: 'Zaidi ya bajeti', leftover: 'Utabaki na',
     approveTitle: 'Thibitisha ununuzi', approveTotal: 'Utalipa jumla ya', approveBtn: 'Nakubali kulipa', cancel: 'Ghairi',
@@ -47,6 +48,7 @@ const T = {
     tabs: { shop: 'Shop', orders: 'My orders', impact: 'Impact', admin: 'Admin' },
     ask: 'What do you need?', askHint: 'Example: maize seeds, budget KSh 3,000', budget: 'Budget (KSh)', go: 'Search', mic: 'Speak', listening: 'Listening…',
     noMic: 'Voice input is not available on this device. Please type instead.',
+    micBlocked: 'Allow the microphone for this site: tap the lock icon at the top, then turn Microphone on.',
     recommended: 'Recommended', select: 'Select', speak: 'Read aloud', qty: 'Quantity', deliv: 'Delivery days (estimate)',
     within: 'Within budget', over: 'Over budget', leftover: 'You keep',
     approveTitle: 'Approve purchase', approveTotal: 'You will pay a total of', approveBtn: 'I approve this payment', cancel: 'Cancel',
@@ -108,13 +110,21 @@ function speak(text) {
 function listen(onText, onError) {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) return onError(t().noMic);
-  const r = new SR();
-  r.lang = S.lang === 'sw' ? 'sw-KE' : 'en-KE';
-  r.interimResults = false; r.maxAlternatives = 1;
-  r.onresult = (e) => onText(e.results[0][0].transcript);
-  r.onerror = () => onError(t().noMic);
-  try { r.start(); } catch { onError(t().noMic); }
-  return r;
+  // Retry in English if the phone's recognizer doesn't support the Swahili code.
+  const start = (lang) => {
+    const r = new SR();
+    r.lang = lang;
+    r.interimResults = false; r.maxAlternatives = 1;
+    r.onresult = (e) => onText(e.results[0][0].transcript);
+    r.onerror = (e) => {
+      if (e.error === 'language-not-supported' && lang !== 'en-US') return start('en-US');
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') return onError(t().micBlocked);
+      onError(`${t().noMic} (${e.error})`);
+    };
+    try { r.start(); } catch (err) { onError(`${t().noMic} (${err.name})`); }
+    return r;
+  };
+  return start(S.lang === 'sw' ? 'sw-KE' : 'en-KE');
 }
 
 /* ---------- offline assistant (same parser as the server, run on the cached catalogue) ---------- */

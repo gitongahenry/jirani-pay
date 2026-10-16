@@ -1,0 +1,19 @@
+# docker compose up --build                 -> app on http://localhost:4000 (simulated or sandbox payments)
+# docker compose --profile ai up --build    -> adds the Hugging Face Swahili model service
+services:
+  app:
+    build: { context: ., dockerfile: services/api/Dockerfile }
+    ports: ["4000:4000"]
+    env_file: [{ path: .env, required: false }]
+    environment:
+      AI_SERVICE_URL: ${AI_SERVICE_URL:-}
+    volumes: ["jirani-data:/data"]
+  ai:
+    profiles: ["ai"]
+    build: { context: ., dockerfile: services/ai/Dockerfile }
+    ports: ["8000:8000"]
+    environment:
+      LLM_MODEL: ${LLM_MODEL:-mwitiderrick/SwahiliInstruct-v0.2}
+      TTS_MODEL: ${TTS_MODEL:-facebook/mms-tts-swh}
+    volumes: ["hf-models:/models"]
+volumes: { jirani-data: {}, hf-models: {} }
